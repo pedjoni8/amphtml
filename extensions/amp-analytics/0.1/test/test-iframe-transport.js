@@ -14,18 +14,18 @@
  * limitations under the License.
  */
 
-import {urls} from '../../../../src/config';
-import {getIframeTransportScriptUrl, IframeTransport}
+import {IframeTransport, getIframeTransportScriptUrl}
   from '../iframe-transport';
-import {user} from '../../../../src/log';
 import {addParamsToUrl} from '../../../../src/url';
 import {expectPostMessage} from '../../../../testing/iframe.js';
+import {urls} from '../../../../src/config';
+import {user} from '../../../../src/log';
 
 describes.realWin('amp-analytics.iframe-transport', {amp: true}, env => {
 
   let sandbox;
   let iframeTransport;
-  const frameUrl = 'https://www.google.com';
+  const frameUrl = 'http://example.com';
 
   beforeEach(() => {
     sandbox = env.sandbox;
@@ -59,7 +59,7 @@ describes.realWin('amp-analytics.iframe-transport', {amp: true}, env => {
     const url = 'https://example.com/test';
     const config = {iframe: url};
     iframeTransport.sendRequest('hello, world!', config);
-    const queue = IframeTransport.getFrameData(iframeTransport.getType()).queue;
+    const {queue} = IframeTransport.getFrameData(iframeTransport.getType());
     expect(queue.queueSize()).to.equal(1);
     iframeTransport.sendRequest('hello again, world!', config);
     expect(queue.queueSize()).to.equal(2);
@@ -185,16 +185,15 @@ describes.realWin('amp-analytics.iframe-transport',
         new IframeTransport(env.ampdoc.win, 'some_other_vendor_type',
             {iframe: frameUrl2}, frameUrl2 + '-3');
         sandbox.restore();
-        const warnSpy = sandbox.spy(user(), 'warn');
-        const frame =
-            IframeTransport.getFrameData('some_other_vendor_type').frame;
+        const errorSpy = sandbox.spy(user(), 'error');
+        const {frame} = IframeTransport.getFrameData('some_other_vendor_type');
         frame.setAttribute('style', '');
         env.ampdoc.win.document.body.appendChild(frame);
         return new Promise((resolve,unused) => {
           expectPostMessage(frame.contentWindow, env.ampdoc.win, 'doneSleeping')
               .then(() => {
-                expect(warnSpy).to.be.called;
-                expect(warnSpy.args[0][1]).to.match(
+                expect(errorSpy).to.be.called;
+                expect(errorSpy.args[0][1]).to.match(
                     /Long Task: Vendor: "some_other_vendor_type"/);
                 resolve();
               });

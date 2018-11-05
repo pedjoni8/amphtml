@@ -16,7 +16,6 @@
 
 import {checkAndFix} from '../../src/service/ie-media-bug';
 import {dev} from '../../src/log';
-import * as sinon from 'sinon';
 
 
 describe('ie-media-bug', () => {
@@ -28,7 +27,7 @@ describe('ie-media-bug', () => {
   let devErrorStub;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     clock = sandbox.useFakeTimers();
     platform = {
       isIe: () => false,

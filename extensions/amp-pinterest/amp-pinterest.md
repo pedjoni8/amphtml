@@ -19,7 +19,7 @@ limitations under the License.
 <table>
   <tr>
     <td width="40%"><strong>Description</strong></td>
-    <td>Displays a Pinterest widget, Pin It button, or Follow button.</td>
+    <td>Displays a Pinterest widget, Save button, or Follow button.</td>
   </tr>
   <tr>
     <td width="40%"><strong>Required Script</strong></td>
@@ -41,7 +41,7 @@ limitations under the License.
 
 Use the `amp-pinterest` component to display a Pin It button, Pin widget, or Follow button.
 
-**Example: Pin It button**
+**Example: Save button**
 
 ```html
 <amp-pinterest
@@ -77,7 +77,7 @@ Use the `amp-pinterest` component to display a Pin It button, Pin widget, or Fol
 </amp-pinterest>
 ```
 
-## Pin It Button
+## Save Button
 
 ##### data-do (required)
 
@@ -95,7 +95,7 @@ Contains the fully-qualified URL of the image intended to be pinned. If the pin 
 
 Contains the default description that appears in the pin create form; please choose carefully, since many Pinners will close the form without pinning if it doesn't make sense.
 
-### Sizing the Pin It button
+### Sizing the Save button
 
 Default small rectangular button:
 
@@ -172,6 +172,10 @@ Must contain the fully-qualified URL of the Pinterest resource to be shown as a 
 ```html
 data-url="https://www.pinterest.com/pin/99360735500167749/"
 ```
+
+##### alt
+
+This property like the the `alt` attribute on an `<img>` tag specifies the alternate text. If not provided it will be infered from the pin data provided by the Pinterest API.
 
 ## Validation
 

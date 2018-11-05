@@ -19,7 +19,6 @@ import {
   stubCollapseFrameForTesting,
   stubExpandFrameForTesting,
 } from '../../../ads/inabox/frame-overlay-helper';
-import * as sinon from 'sinon';
 
 
 const NOOP = () => {};

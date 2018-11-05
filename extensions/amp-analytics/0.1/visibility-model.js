@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import {dev} from '../../../src/log';
+import {Deferred} from '../../../src/utils/promise';
 import {Observable} from '../../../src/observable';
-
-/** @private @const {string} */
-const TAG_ = 'amp-analytics.VisibilityModel';
+import {dev} from '../../../src/log';
+import {dict} from '../../../src/utils/object';
 
 /**
  * This class implements visibility calculations based on the
@@ -27,7 +26,7 @@ const TAG_ = 'amp-analytics.VisibilityModel';
  */
 export class VisibilityModel {
   /**
-   * @param {!Object<string, *>} spec
+   * @param {!JsonObject} spec
    * @param {function():number} calcVisibility
    */
   constructor(spec, calcVisibility) {
@@ -36,48 +35,37 @@ export class VisibilityModel {
 
     /**
      * Spec parameters.
-     * @private {{
-     *   visiblePercentageMin: number,
-     *   visiblePercentageMax: number,
-     *   totalTimeMin: number,
-     *   totalTimeMax: number,
-     *   continuousTimeMin: number,
-     *   continuousTimeMax: number,
-     * }}
+     * @private {!JsonObject}
      */
-    this.spec_ = {
-      visiblePercentageMin: Number(spec['visiblePercentageMin']) / 100 || 0,
-      visiblePercentageMax: Number(spec['visiblePercentageMax']) / 100 || 1,
-      totalTimeMin: Number(spec['totalTimeMin']) || 0,
-      totalTimeMax: Number(spec['totalTimeMax']) || Infinity,
-      continuousTimeMin: Number(spec['continuousTimeMin']) || 0,
-      continuousTimeMax: Number(spec['continuousTimeMax']) || Infinity,
-    };
+    this.spec_ = dict({
+      'visiblePercentageMin': Number(spec['visiblePercentageMin']) / 100 || 0,
+      'visiblePercentageMax': Number(spec['visiblePercentageMax']) / 100 || 1,
+      'totalTimeMin': Number(spec['totalTimeMin']) || 0,
+      'totalTimeMax': Number(spec['totalTimeMax']) || Infinity,
+      'continuousTimeMin': Number(spec['continuousTimeMin']) || 0,
+      'continuousTimeMax': Number(spec['continuousTimeMax']) || Infinity,
+    });
     // Above, if visiblePercentageMax was not specified, assume 100%.
     // Here, do allow 0% to be the value if that is what was specified.
     if (String(spec['visiblePercentageMax']).trim() === '0') {
-      this.spec_.visiblePercentageMax = 0;
+      this.spec_['visiblePercentageMax'] = 0;
     }
 
     /** @private {boolean} */
     this.repeat_ = spec['repeat'] === true;
 
-    /** @private {?function()} */
-    this.eventResolver_ = null;
-
     /** @private {?Observable} */
     this.onTriggerObservable_ = new Observable();
 
+    const deferred = new Deferred();
+
     /** @private */
-    this.eventPromise_ = new Promise(resolve => {
-      this.eventResolver_ = resolve;
-    });
+    this.eventPromise_ = deferred.promise;
+
+    /** @private {?function()} */
+    this.eventResolver_ = deferred.resolve;
 
     this.eventPromise_.then(() => {
-      if (!this.onTriggerObservable_) {
-        dev().warn(TAG_, 'onTriggerObservable_ is unexpectedly null.');
-        return;
-      }
       this.onTriggerObservable_.fire();
     });
 
@@ -156,14 +144,11 @@ export class VisibilityModel {
   reset_() {
     dev().assert(!this.eventResolver_,
         'Attempt to refresh visible event before previous one resolve');
-    this.eventPromise_ = new Promise(resolve => {
-      this.eventResolver_ = resolve;
-    });
+    const deferred = new Deferred();
+    this.eventPromise_ = deferred.promise;
+    this.eventResolver_ = deferred.resolve;
+
     this.eventPromise_.then(() => {
-      if (!this.onTriggerObservable_) {
-        dev().warn(TAG_, 'onTriggerObservable_ is unexpectedly null.');
-        return;
-      }
       this.onTriggerObservable_.fire();
     });
     this.scheduleRepeatId_ = null;
@@ -206,15 +191,10 @@ export class VisibilityModel {
     });
     this.unsubscribe_.length = 0;
     this.eventResolver_ = null;
-    // TODO(jonkeller): Investigate why dispose() can be called twice,
-    // necessitating this "if", and the same "if" elsewhere in this file.
-    if (!this.onTriggerObservable_) {
-      dev().warn(TAG_,
-          'dispose() called when onTriggerObservable_ already null.');
-      return;
+    if (this.onTriggerObservable_) {
+      this.onTriggerObservable_.removeAll();
+      this.onTriggerObservable_ = null;
     }
-    this.onTriggerObservable_.removeAll();
-    this.onTriggerObservable_ = null;
   }
 
   /**
@@ -234,8 +214,6 @@ export class VisibilityModel {
   onTriggerEvent(handler) {
     if (this.onTriggerObservable_) {
       this.onTriggerObservable_.add(handler);
-    } else {
-      dev().warn(TAG_, 'onTriggerObservable_ is unexpectedly null.');
     }
     if (this.eventPromise_ && !this.eventResolver_) {
       // If eventPromise has already resolved, need to call handler manually.
@@ -257,7 +235,7 @@ export class VisibilityModel {
   /**
    * Sets that the model needs to wait on extra report ready promise
    * after all visibility conditions have been met to call report handler
-   * @param {!function():!Promise} callback
+   * @param {function():!Promise} callback
    */
   setReportReady(callback) {
     this.reportReady_ = false;
@@ -282,25 +260,25 @@ export class VisibilityModel {
   /**
    * Returns the calculated state of visibility.
    * @param {time} startTime
-   * @return {!Object<string, string|number>}
+   * @return {!JsonObject}
    */
   getState(startTime) {
-    return {
+    return dict({
       // Observed times, relative to the `startTime`.
-      firstSeenTime: timeBase(this.firstSeenTime_, startTime),
-      lastSeenTime: timeBase(this.lastSeenTime_, startTime),
-      lastVisibleTime: timeBase(this.lastVisibleTime_, startTime),
-      firstVisibleTime: timeBase(this.firstVisibleTime_, startTime),
+      'firstSeenTime': timeBase(this.firstSeenTime_, startTime),
+      'lastSeenTime': timeBase(this.lastSeenTime_, startTime),
+      'lastVisibleTime': timeBase(this.lastVisibleTime_, startTime),
+      'firstVisibleTime': timeBase(this.firstVisibleTime_, startTime),
 
       // Durations.
-      maxContinuousVisibleTime: this.maxContinuousVisibleTime_,
-      totalVisibleTime: this.totalVisibleTime_,
+      'maxContinuousVisibleTime': this.maxContinuousVisibleTime_,
+      'totalVisibleTime': this.totalVisibleTime_,
 
       // Visibility percents.
-      loadTimeVisibility: this.loadTimeVisibility_ * 100 || 0,
-      minVisiblePercentage: this.minVisiblePercentage_ * 100,
-      maxVisiblePercentage: this.maxVisiblePercentage_ * 100,
-    };
+      'loadTimeVisibility': this.loadTimeVisibility_ * 100 || 0,
+      'minVisiblePercentage': this.minVisiblePercentage_ * 100,
+      'maxVisiblePercentage': this.maxVisiblePercentage_ * 100,
+    });
   }
 
   /**
@@ -349,8 +327,8 @@ export class VisibilityModel {
       const timeToWait = this.computeTimeToWait_();
       if (timeToWait > 0) {
         this.scheduledUpdateTimeoutId_ = setTimeout(() => {
-          this.update();
           this.scheduledUpdateTimeoutId_ = null;
+          this.update();
         }, timeToWait);
       }
     } else if (!this.matchesVisibility_ && this.scheduledUpdateTimeoutId_) {
@@ -369,16 +347,16 @@ export class VisibilityModel {
         'invalid visibility value: %s', visibility);
     // Special case: If visiblePercentageMin is 100%, then it doesn't make
     // sense to do the usual (min, max] since that would never be true.
-    if (this.spec_.visiblePercentageMin == 1) {
+    if (this.spec_['visiblePercentageMin'] == 1) {
       return visibility == 1;
     }
     // Special case: If visiblePercentageMax is 0%, then we
     // want to ping when the creative becomes not visible.
-    if (this.spec_.visiblePercentageMax == 0) {
+    if (this.spec_['visiblePercentageMax'] == 0) {
       return visibility == 0;
     }
-    return visibility > this.spec_.visiblePercentageMin &&
-        visibility <= this.spec_.visiblePercentageMax;
+    return visibility > this.spec_['visiblePercentageMin'] &&
+        visibility <= this.spec_['visiblePercentageMax'];
   }
 
   /**
@@ -442,10 +420,10 @@ export class VisibilityModel {
     }
 
     return this.everMatchedVisibility_ &&
-        (this.totalVisibleTime_ >= this.spec_.totalTimeMin) &&
-        (this.totalVisibleTime_ <= this.spec_.totalTimeMax) &&
-        (this.maxContinuousVisibleTime_ >= this.spec_.continuousTimeMin) &&
-        (this.maxContinuousVisibleTime_ <= this.spec_.continuousTimeMax);
+        (this.totalVisibleTime_ >= this.spec_['totalTimeMin']) &&
+        (this.totalVisibleTime_ <= this.spec_['totalTimeMax']) &&
+        (this.maxContinuousVisibleTime_ >= this.spec_['continuousTimeMin']) &&
+        (this.maxContinuousVisibleTime_ <= this.spec_['continuousTimeMax']);
   }
 
   /**
@@ -456,9 +434,9 @@ export class VisibilityModel {
    */
   computeTimeToWait_() {
     const waitForContinuousTime = Math.max(
-        this.spec_.continuousTimeMin - this.continuousTime_, 0);
+        this.spec_['continuousTimeMin'] - this.continuousTime_, 0);
     const waitForTotalTime = Math.max(
-        this.spec_.totalTimeMin - this.totalVisibleTime_, 0);
+        this.spec_['totalTimeMin'] - this.totalVisibleTime_, 0);
     const maxWaitTime = Math.max(waitForContinuousTime, waitForTotalTime);
     return Math.min(
         maxWaitTime,

@@ -14,7 +14,7 @@
  * limitations under the License.
  */
 
-import {liveListManagerForDoc, LiveListManager} from '../live-list-manager';
+import {LiveListManager, liveListManagerForDoc} from '../live-list-manager';
 import {Services} from '../../../../src/services';
 
 const XHR_BUFFER_SIZE = 2;
@@ -32,7 +32,7 @@ describes.fakeWin('LiveListManager', {amp: true}, env => {
   let sandbox;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     win = env.win;
     doc = win.document;
     ampdoc = env.ampdoc;

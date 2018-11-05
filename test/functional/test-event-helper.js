@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Observable} from '../../src/observable';
 import {
   createCustomEvent,
   isLoaded,
@@ -26,8 +27,6 @@ import {
   detectEvtListenerOptsSupport,
   resetEvtListenerOptsSupportForTesting,
 } from '../../src/event-helper-listen';
-import {Observable} from '../../src/observable';
-import * as sinon from 'sinon';
 
 describe('EventHelper', () => {
 
@@ -46,7 +45,7 @@ describe('EventHelper', () => {
   let removeEventListenerStub;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     loadObservable = new Observable();
     errorObservable = new Observable();
     element = {

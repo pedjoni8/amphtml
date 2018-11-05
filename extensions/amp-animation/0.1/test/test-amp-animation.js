@@ -15,8 +15,8 @@
  */
 
 import {AmpAnimation} from '../amp-animation';
-import {WebAnimationRunner} from '../web-animations';
 import {WebAnimationPlayState} from '../web-animation-types';
+import {WebAnimationRunner} from '../web-animations';
 
 
 describes.sandboxed('AmpAnimation', {}, () => {
@@ -117,7 +117,7 @@ describes.sandboxed('AmpAnimation', {}, () => {
         expect(anim.element.style['left']).to.equal('0px');
         expect(anim.element.style['width']).to.equal('1px');
         expect(anim.element.style['height']).to.equal('1px');
-        expect(anim.element.style['display']).to.equal('block');
+        expect(anim.element).to.have.display('block');
       });
     });
 

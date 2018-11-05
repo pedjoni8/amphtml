@@ -20,14 +20,15 @@ const detectGlobals = require('acorn-globals');
 const escodegen = require('escodegen');
 const rocambole = require('rocambole');
 
+const colors = require('ansi-colors');
+const es = require('event-stream');
 const fs = require('fs');
 const program = require('commander');
-const es = require('event-stream');
-const util = require('gulp-util');
 
 /**
- * Changes global `require` calls to be referenced from a given global namespace.
- * e.g. if scopeName is `AMP`, calls will be transformed to `AMP.require`.
+ * Changes global `require` calls to be referenced from a given global
+ * namespace. e.g. if scopeName is `AMP`, calls will be transformed to
+ * `AMP.require`.
  * @param {string} src The contents of a JavaScript source file.
  * @param {string} scopeName The name to prepend to `require` calls.
  * @return {string} The transformed source code
@@ -116,14 +117,14 @@ const inputStream = (program.infile && program.infile !== '-' ?
   fs.createReadStream(program.infile) :
   process.stdin);
 inputStream.on('error', err => {
-  console./*OK*/error(util.colors.red('\nError reading file: ' + err.path));
+  console./*OK*/error(colors.red('\nError reading file: ' + err.path));
 });
 
 const outputStream = (program.outfile && program.outfile !== '-' ?
   fs.createWriteStream(program.outfile) :
   process.stdout);
 outputStream.on('error', err => {
-  console./*OK*/error(util.colors.red('\nError writing file: ' + err.path));
+  console./*OK*/error(colors.red('\nError writing file: ' + err.path));
 });
 
 const scopeRequireStream = es.map((inputFile, cb) =>

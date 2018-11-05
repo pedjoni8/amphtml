@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import {AmpEvents} from '../../../src/amp-events';
 import {CSS} from '../../../build/amp-fx-flying-carpet-0.1.css';
 import {Layout} from '../../../src/layout';
-import {user, dev} from '../../../src/log';
-import {setStyle} from '../../../src/style';
+import {dev, user} from '../../../src/log';
 import {listen} from '../../../src/event-helper';
-import {AmpEvents} from '../../../src/amp-events';
+import {setStyle} from '../../../src/style';
 
 const TAG = 'amp-fx-flying-carpet';
 
@@ -57,6 +57,8 @@ export class AmpFlyingCarpet extends AMP.BaseElement {
      * @private
      */
     this.container_ = null;
+
+    this.firstLayoutCompleted_ = false;
   }
 
 
@@ -86,15 +88,22 @@ export class AmpFlyingCarpet extends AMP.BaseElement {
     clip.appendChild(container);
     this.element.appendChild(clip);
 
-    this.getViewport().addToFixedLayer(container);
+    // Make the fixed-layer track the container, but never transfer it out of
+    // this DOM tree. Tracking allows us to compensate for the Viewer's header,
+    // but transferring would break the clipping UI.
+    this.getViewport().addToFixedLayer(container, /* opt_forceTransfer */false);
   }
 
   /** @override */
-  onLayoutMeasure() {
+  onMeasureChanged() {
     const width = this.getLayoutWidth();
-    this.getVsync().mutate(() => {
+    this.mutateElement(() => {
       setStyle(this.container_, 'width', width, 'px');
     });
+    if (this.firstLayoutCompleted_) {
+      this.scheduleLayout(this.children_);
+      listen(this.element, AmpEvents.BUILT, this.layoutBuiltChild_.bind(this));
+    }
   }
 
   /** @override */
@@ -145,6 +154,7 @@ export class AmpFlyingCarpet extends AMP.BaseElement {
     }
     this.scheduleLayout(this.children_);
     listen(this.element, AmpEvents.BUILT, this.layoutBuiltChild_.bind(this));
+    this.firstLayoutCompleted_ = true;
     return Promise.resolve();
   }
 

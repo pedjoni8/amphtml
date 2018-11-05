@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
-import {Vsync} from '../../src/service/vsync-impl';
 import {AmpDocShadow, installDocService} from '../../src/service/ampdoc-impl';
 import {Services} from '../../src/services';
+import {Vsync} from '../../src/service/vsync-impl';
 import {installTimerService} from '../../src/service/timer-impl';
-import * as sinon from 'sinon';
 
 
 describe('vsync', () => {
@@ -32,7 +31,7 @@ describe('vsync', () => {
   let contextNode;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     clock = sandbox.useFakeTimers();
     win = {
       document: {
@@ -51,6 +50,7 @@ describe('vsync', () => {
       requestAnimationFrame: window.requestAnimationFrame.bind(window),
     };
     win.document.defaultView = win;
+    win.Promise = window.Promise;
 
     installTimerService(win);
 
@@ -99,9 +99,9 @@ describe('vsync', () => {
     });
 
     it('should fail canAnimate without node', () => {
-      expect(() => {
+      allowConsoleError(() => { expect(() => {
         vsync.canAnimate();
-      }).to.throw(/Assertion failed/);
+      }).to.throw(/Assertion failed/); });
     });
 
     // TODO(choumx, #12476): Make this test work with sinon 4.0.
@@ -482,8 +482,7 @@ describe('vsync', () => {
       vsync.raf_ = handler => rafHandler = handler;
       viewer.isVisible = () => false;
 
-      /*eslint no-unused-vars: 0*/
-      let result = '';
+      let result = ''; // eslint-disable-line no-unused-vars
       const res = vsync.runAnim(contextNode, {
         mutate: () => {
           result += 'mu1';
@@ -500,8 +499,7 @@ describe('vsync', () => {
       vsync.raf_ = handler => rafHandler = handler;
       viewer.isVisible = () => false;
 
-      /*eslint no-unused-vars: 0*/
-      let result = '';
+      let result = ''; // eslint-disable-line no-unused-vars
       const task = vsync.createAnimTask(contextNode, {
         mutate: () => {
           result += 'mu1';
@@ -760,8 +758,7 @@ describe('vsync', () => {
       vsync.raf_ = handler => rafHandler = handler;
       docState.isHidden = () => true;
 
-      /*eslint no-unused-vars: 0*/
-      let result = '';
+      let result = ''; // eslint-disable-line no-unused-vars
       const res = vsync.runAnim(contextNode, {
         mutate: () => {
           result += 'mu1';
@@ -778,8 +775,7 @@ describe('vsync', () => {
       vsync.raf_ = handler => rafHandler = handler;
       docState.isHidden = () => true;
 
-      /*eslint no-unused-vars: 0*/
-      let result = '';
+      let result = ''; // eslint-disable-line no-unused-vars
       const task = vsync.createAnimTask(contextNode, {
         mutate: () => {
           result += 'mu1';

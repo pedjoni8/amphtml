@@ -21,6 +21,9 @@
 
 const childProcess = require('child_process');
 
+const shellCmd = (process.platform == 'win32') ? 'cmd' : '/bin/sh';
+const shellFlag = (process.platform == 'win32') ? '/C' : '-c';
+
 /**
  * Spawns the given command in a child process with the given options.
  *
@@ -29,25 +32,40 @@ const childProcess = require('child_process');
  * @return {<Object>} Process info.
  */
 function spawnProcess(cmd, options) {
-  return childProcess.spawnSync('/bin/sh', ['-c', cmd], options);
+  return childProcess.spawnSync(shellCmd, [shellFlag, cmd], options);
 }
 
 /**
- * Executes the provided command.
+ * Executes the provided command with the given options, returning the process
+ * object.
  *
  * @param {string} cmd Command line to execute.
+ * @param {<Object>} options
+ * @return {<Object>} Process info.
  */
-exports.exec = function(cmd) {
-  spawnProcess(cmd, {'stdio': 'inherit'});
+exports.exec = function(cmd, options) {
+  options = options || {'stdio': 'inherit'};
+  return spawnProcess(cmd, options);
+};
+
+/**
+ * Executes the provided shell script in an asynchronous process.
+ *
+ * @param {string} script
+ * @param {<Object>} options
+ */
+exports.execScriptAsync = function(script, options) {
+  return childProcess.spawn(shellCmd, [shellFlag, script], options);
 };
 
 /**
  * Executes the provided command, and terminates the program in case of failure.
  *
  * @param {string} cmd Command line to execute.
+ * @param {<Object>} options Extra options to send to the process.
  */
-exports.execOrDie = function(cmd) {
-  const p = spawnProcess(cmd, {'stdio': 'inherit'});
+exports.execOrDie = function(cmd, options) {
+  const p = exports.exec(cmd, options);
   if (p.status != 0) {
     process.exit(p.status);
   }
@@ -55,7 +73,6 @@ exports.execOrDie = function(cmd) {
 
 /**
  * Executes the provided command, returning the process object.
- * This will throw an exception if something goes wrong.
  * @param {string} cmd
  * @return {!Object}
  */

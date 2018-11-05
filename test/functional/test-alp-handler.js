@@ -15,8 +15,7 @@
  */
 
 import {handleClick, warmupDynamic, warmupStatic} from '../../ads/alp/handler';
-import {parseUrl} from '../../src/url';
-import * as sinon from 'sinon';
+import {parseUrlDeprecated} from '../../src/url';
 
 describe('alp-handler', () => {
 
@@ -28,7 +27,7 @@ describe('alp-handler', () => {
   let image;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     image = undefined;
     win = {
       location: {},
@@ -74,7 +73,7 @@ describe('alp-handler', () => {
       ownerDocument: doc,
       getAttribute: sandbox.stub(),
       get search() {
-        return parseUrl(this.href).search;
+        return parseUrlDeprecated(this.href).search;
       },
     };
     event = {

@@ -15,32 +15,42 @@
  */
 
 
-import {getMode} from './mode';
+import {AmpEvents} from './amp-events';
+import {Services} from './services';
+import {
+  USER_ERROR_SENTINEL,
+  dev,
+  duplicateErrorIfNecessary,
+  isUserErrorEmbed,
+  isUserErrorMessage,
+} from './log';
+import {dict} from './utils/object';
+import {
+  experimentTogglesOrNull,
+  getBinaryType,
+  isCanary,
+  isExperimentOn,
+} from './experiments';
 import {exponentialBackoff} from './exponential-backoff';
+import {getMode} from './mode';
 import {
   isLoadErrorMessage,
 } from './event-helper';
-import {
-  USER_ERROR_SENTINEL,
-  isUserErrorMessage,
-  isUserErrorEmbed,
-  duplicateErrorIfNecessary,
-  dev,
-} from './log';
 import {isProxyOrigin} from './url';
-import {isCanary, experimentTogglesOrNull, getBinaryType} from './experiments';
-import {makeBodyVisible} from './style-installer';
+import {makeBodyVisibleRecovery} from './style-installer';
 import {startsWith} from './string';
-import {urls} from './config';
-import {AmpEvents} from './amp-events';
 import {triggerAnalyticsEvent} from './analytics';
-import {isExperimentOn} from './experiments';
-import {Services} from './services';
+import {urls} from './config';
 
 /**
  * @const {string}
  */
 const CANCELLED = 'CANCELLED';
+
+/**
+ * @const {string}
+ */
+const BLOCK_BY_CONSENT = 'BLOCK_BY_CONSENT';
 
 
 /**
@@ -199,7 +209,7 @@ export function reportError(error, opt_associatedElement) {
 
     // 'call' to make linter happy. And .call to make compiler happy
     // that expects some @this.
-    reportErrorToServer['call'](undefined, undefined, undefined, undefined,
+    onError['call'](undefined, undefined, undefined, undefined,
         undefined, error);
   } catch (errorReportingError) {
     setTimeout(function() {
@@ -235,13 +245,41 @@ export function isCancellation(errorOrMessage) {
 }
 
 /**
+ * Returns an error for component blocked by consent
+ * @return {!Error}
+ */
+export function blockedByConsentError() {
+  return new Error(BLOCK_BY_CONSENT);
+}
+
+/**
+ * @param {*} errorOrMessage
+ * @return {boolean}
+ */
+export function isBlockedByConsent(errorOrMessage) {
+  if (!errorOrMessage) {
+    return false;
+  }
+  if (typeof errorOrMessage == 'string') {
+    return startsWith(errorOrMessage, BLOCK_BY_CONSENT);
+  }
+  if (typeof errorOrMessage.message == 'string') {
+    return startsWith(errorOrMessage.message, BLOCK_BY_CONSENT);
+  }
+  return false;
+}
+
+
+/**
  * Install handling of global unhandled exceptions.
  * @param {!Window} win
  */
 export function installErrorReporting(win) {
-  win.onerror = /** @type {!Function} */ (reportErrorToServer);
+  win.onerror = /** @type {!Function} */ (onError);
   win.addEventListener('unhandledrejection', event => {
-    if (event.reason && event.reason.message === CANCELLED) {
+    if (event.reason &&
+      (event.reason.message === CANCELLED ||
+      event.reason.message === BLOCK_BY_CONSENT)) {
       event.preventDefault();
       return;
     }
@@ -258,10 +296,10 @@ export function installErrorReporting(win) {
  * @param {*|undefined} error
  * @this {!Window|undefined}
  */
-function reportErrorToServer(message, filename, line, col, error) {
+function onError(message, filename, line, col, error) {
   // Make an attempt to unhide the body.
   if (this && this.document) {
-    makeBodyVisible(this.document);
+    makeBodyVisibleRecovery(this.document);
   }
   if (getMode().localDev || getMode().development || getMode().test) {
     return;
@@ -281,12 +319,108 @@ function reportErrorToServer(message, filename, line, col, error) {
   const data = getErrorReportData(message, filename, line, col, error,
       hasNonAmpJs);
   if (data) {
-    reportingBackoff(() => {
+    reportingBackoff(() =>
+      reportErrorToServerOrViewer(this, /** @type {!JsonObject} */ (data)));
+  }
+}
+
+/**
+ * Passes the given error data to either server or viewer.
+ * @param {!Window} win
+ * @param {!JsonObject} data Data from `getErrorReportData`.
+ * @return {Promise<undefined>}
+ */
+export function reportErrorToServerOrViewer(win, data) {
+  // Report the error to viewer if it has the capability. The data passed
+  // to the viewer is exactly the same as the data passed to the server
+  // below.
+  return maybeReportErrorToViewer(win, data).then(reportedErrorToViewer => {
+    if (!reportedErrorToViewer) {
       const xhr = new XMLHttpRequest();
       xhr.open('POST', urls.errorReporting, true);
       xhr.send(JSON.stringify(data));
-    });
+    }
+  });
+}
+
+/**
+ * Passes the given error data to the viewer if the following criteria is met:
+ * - The viewer is a trusted viewer
+ * - The viewer has the `errorReporter` capability
+ * - The AMP doc is in single doc mode
+ * - The AMP doc is opted-in for error interception (`<html>` tag has the
+ *   `report-errors-to-viewer` attribute)
+ *
+ * @param {!Window} win
+ * @param {!JsonObject} data Data from `getErrorReportData`.
+ * @return {!Promise<boolean>} `Promise<True>` if the error was sent to the
+ *     viewer, `Promise<False>` otherwise.
+ * @visibleForTesting
+ */
+export function maybeReportErrorToViewer(win, data) {
+  const ampdocService = Services.ampdocServiceFor(win);
+  if (!ampdocService.isSingleDoc()) {
+    return Promise.resolve(false);
   }
+  const ampdocSingle = ampdocService.getAmpDoc();
+  const htmlElement = ampdocSingle.getRootNode().documentElement;
+  const docOptedIn = htmlElement.hasAttribute('report-errors-to-viewer');
+  if (!docOptedIn) {
+    return Promise.resolve(false);
+  }
+
+  const viewer = Services.viewerForDoc(ampdocSingle);
+  if (!viewer.hasCapability('errorReporter')) {
+    return Promise.resolve(false);
+  }
+
+  return viewer.isTrustedViewer().then(viewerTrusted => {
+    if (!viewerTrusted) {
+      return false;
+    }
+
+    viewer.sendMessage('error', errorReportingDataForViewer(data));
+    return true;
+  });
+}
+
+/**
+ * Strips down the error reporting data to a minimal set
+ * to be sent to the viewer.
+ * @param {!JsonObject} errorReportData
+ * @return {!JsonObject}
+ * @visibleForTesting
+ */
+export function errorReportingDataForViewer(errorReportData) {
+  return dict({
+    'm': errorReportData['m'], // message
+    'a': errorReportData['a'], // isUserError
+    's': errorReportData['s'], // error stack
+    'el': errorReportData['el'], // tagName
+    'v': errorReportData['v'], // runtime
+    'jse': errorReportData['jse'], // detectedJsEngine
+  });
+}
+
+/**
+ * @param {string|undefined}  message
+ * @param {*|undefined} error
+ * @return {string}
+ */
+function buildErrorMessage_(message, error) {
+  if (error) {
+    if (error.message) {
+      message = error.message;
+    } else {
+      // This should never be a string, but sometimes it is.
+      message = String(error);
+    }
+  }
+  if (!message) {
+    message = 'Unknown error';
+  }
+
+  return message;
 }
 
 /**
@@ -302,27 +436,14 @@ function reportErrorToServer(message, filename, line, col, error) {
  */
 export function getErrorReportData(message, filename, line, col, error,
   hasNonAmpJs) {
-  let expected = false;
-  if (error) {
-    if (error.message) {
-      message = error.message;
-    } else {
-      // This should never be a string, but sometimes it is.
-      message = String(error);
-    }
-    // An "expected" error is still an error, i.e. some features are disabled
-    // or not functioning fully because of it. However, it's an expected
-    // error. E.g. as is the case with some browser API missing (storage).
-    // Thus, the error can be classified differently by log aggregators.
-    // The main goal is to monitor that an "expected" error doesn't deteriorate
-    // over time. It's impossible to completely eliminate it.
-    if (error.expected) {
-      expected = true;
-    }
-  }
-  if (!message) {
-    message = 'Unknown error';
-  }
+  message = buildErrorMessage_(message, error);
+  // An "expected" error is still an error, i.e. some features are disabled
+  // or not functioning fully because of it. However, it's an expected
+  // error. E.g. as is the case with some browser API missing (storage).
+  // Thus, the error can be classified differently by log aggregators.
+  // The main goal is to monitor that an "expected" error doesn't deteriorate
+  // over time. It's impossible to completely eliminate it.
+  let expected = !!(error && error.expected);
   if (/_reported_/.test(message)) {
     return;
   }
@@ -330,13 +451,18 @@ export function getErrorReportData(message, filename, line, col, error,
     return;
   }
 
+  const detachedWindow = !(self && self.window);
   const throttleBase = Math.random();
+
   // We throttle load errors and generic "Script error." errors
   // that have no information and thus cannot be acted upon.
   if (isLoadErrorMessage(message) ||
     // See https://github.com/ampproject/amphtml/issues/7353
     // for context.
-    message == 'Script error.') {
+    message == 'Script error.' ||
+    // Window has become detached, really anything can happen
+    // at this point.
+    detachedWindow) {
     expected = true;
 
     if (throttleBase > NON_ACTIONABLE_ERROR_THROTTLE_THRESHOLD) {
@@ -364,6 +490,7 @@ export function getErrorReportData(message, filename, line, col, error,
   // Errors are tagged with "ex" ("expected") label to allow loggers to
   // classify these errors as benchmarks and not exceptions.
   data['ex'] = expected ? '1' : '0';
+  data['dw'] = detachedWindow ? '1' : '0';
 
   let runtime = '1p';
   if (self.context && self.context.location) {
@@ -373,6 +500,11 @@ export function getErrorReportData(message, filename, line, col, error,
     runtime = getMode().runtime;
   }
   data['rt'] = runtime;
+
+  // Add our a4a id if we are inabox
+  if (runtime === 'inabox') {
+    data['adid'] = getMode().a4aId;
+  }
 
   // TODO(erwinm): Remove ca when all systems read `bt` instead of `ca` to
   // identify js binary type.
@@ -417,7 +549,7 @@ export function getErrorReportData(message, filename, line, col, error,
   data['exps'] = exps.join(',');
 
   if (error) {
-    const tagName = error && error.associatedElement
+    const tagName = error.associatedElement
       ? error.associatedElement.tagName
       : 'u'; // Unknown
     data['el'] = tagName;
@@ -430,7 +562,10 @@ export function getErrorReportData(message, filename, line, col, error,
       data['s'] = error.stack;
     }
 
-    error.message += ' _reported_';
+    // TODO(jridgewell, #18574); Make sure error is always an object.
+    if (error.message) {
+      error.message += ' _reported_';
+    }
   } else {
     data['f'] = filename || '';
     data['l'] = line || '';
@@ -462,6 +597,9 @@ export function detectNonAmpJs(win) {
   return false;
 }
 
+/**
+ * Resets accumulated error messages for testing
+ */
 export function resetAccumulatedErrorMessagesForTesting() {
   accumulatedErrorMessages = [];
 }
@@ -484,7 +622,7 @@ export function detectJsEngineFromStack() {
   try {
     object.t();
   } catch (e) {
-    const stack = e.stack;
+    const {stack} = e;
 
     // Safari only mentions the method name.
     if (startsWith(stack, 't@')) {
@@ -522,10 +660,10 @@ export function detectJsEngineFromStack() {
  */
 export function reportErrorToAnalytics(error, win) {
   if (isExperimentOn(win, 'user-error-reporting')) {
-    const vars = {
+    const vars = dict({
       'errorName': error.name,
       'errorMessage': error.message,
-    };
+    });
     triggerAnalyticsEvent(getRootElement_(win), 'user-error', vars);
   }
 }

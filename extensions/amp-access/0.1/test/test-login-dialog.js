@@ -14,13 +14,12 @@
  * limitations under the License.
  */
 
+import {Services} from '../../../../src/services';
 import {
   WebLoginDialog,
   openLoginDialog,
 } from '../login-dialog';
-import {Services} from '../../../../src/services';
 import {installDocService} from '../../../../src/service/ampdoc-impl';
-import * as sinon from 'sinon';
 
 const RETURN_URL_ESC = encodeURIComponent('http://localhost:8000/extensions' +
     '/amp-access/0.1/amp-login-done.html?url=' +
@@ -33,7 +32,7 @@ describes.sandboxed('ViewerLoginDialog', {}, () => {
   let windowApi;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
 
     viewer = {
       getParam: param => {

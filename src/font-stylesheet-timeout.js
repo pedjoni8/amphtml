@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+import {escapeCssSelectorIdent} from './dom';
+import {isExperimentOn} from './experiments';
 import {onDocumentReady} from './document-ready';
 import {urls} from './config';
-import {isExperimentOn} from './experiments';
 
 /**
  * While browsers put a timeout on font downloads (3s by default,
@@ -41,7 +42,6 @@ export function fontStylesheetTimeout(win) {
  * @param {!Window} win
  */
 function maybeTimeoutFonts(win) {
-  timeoutFontFaces(win);
   let timeSinceResponseStart = 0;
   // If available, we start counting from the time the HTTP response
   // for the page started. The preload scanner should then quickly
@@ -56,14 +56,16 @@ function maybeTimeoutFonts(win) {
   win.setTimeout(() => {
     // Try again, more fonts might have loaded.
     timeoutFontFaces(win);
-    const styleSheets = win.document.styleSheets;
+    const {styleSheets} = win.document;
     if (!styleSheets) {
       return;
     }
     // Find all stylesheets that aren't loaded from the AMP CDN (those are
     // critical if they are present).
     const styleLinkElements = win.document.querySelectorAll(
-        'link[rel~="stylesheet"]:not([href^="' + urls.cdn + '"])');
+        `link[rel~="stylesheet"]:not([href^="${
+          escapeCssSelectorIdent(urls.cdn)
+        }"])`);
     // Compare external sheets against elements of document.styleSheets.
     // They do not appear in this list until they have been loaded.
     const timedoutStyleSheets = [];
@@ -121,7 +123,7 @@ function timeoutFontFaces(win) {
   }
   const doc = win.document;
   // TODO(@cramforce) Switch to .values when FontFaceSet extern supports it.
-  if (!doc.fonts && !doc.fonts['values']) {
+  if (!doc.fonts || !doc.fonts['values']) {
     return;
   }
   const it = doc.fonts['values']();

@@ -32,7 +32,6 @@
 
 import {BaseSlides} from '../base-slides';
 
-
 describes.fakeWin('BaseSlides', {amp: true}, env => {
   let win, doc;
   let buildSlidesSpy;
@@ -77,7 +76,11 @@ describes.fakeWin('BaseSlides', {amp: true}, env => {
       element.setAttribute('loop', '');
     }
     if (options.autoplay) {
-      element.setAttribute('autoplay', '');
+      if (!options.autoplayLoops) {
+        element.setAttribute('autoplay', '');
+      } else {
+        element.setAttribute('autoplay', options.autoplayLoops);
+      }
     }
     if (options.delay) {
       element.setAttribute('delay', options.delay);
@@ -196,6 +199,20 @@ describes.fakeWin('BaseSlides', {amp: true}, env => {
     expect(carousel.shouldLoop).to.be.true;
   });
 
+  it('should setup autoplay with specified number of loops', () => {
+    const carousel = new TestCarousel(setElement({
+      autoplay: true,
+      autoplayLoops: 5,
+    }));
+    expect(carousel.element.hasAttribute('loop')).to.be.false;
+    carousel.buildCallback();
+    expect(carousel.element.hasAttribute('loop')).to.be.true;
+    expect(carousel.autoplayLoops_).to.equal(5);
+    expect(carousel.hasLoop_).to.be.true;
+    expect(carousel.shouldLoop).to.be.true;
+  });
+
+
   it('should setup autoplay with delay set', () => {
     const carousel = new TestCarousel(setElement({
       autoplay: true,
@@ -261,4 +278,64 @@ describes.fakeWin('BaseSlides', {amp: true}, env => {
     carousel.clearAutoplay();
     expect(carousel.autoplayTimeoutId_).to.be.null;
   });
+
+  it('toggle autoPlay status using speficied value & autoplay=true', () => {
+    const carousel = new TestCarousel(setElement({
+      autoplay: true,
+      delay: 300,
+    }));
+    carousel.buildCallback();
+    carousel.autoplay_();
+
+    expect(carousel.shouldAutoplay_).to.be.true;
+
+    const args = {'toggleOn': false};
+    carousel.executeAction(
+        {method: 'toggleAutoplay', args, satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.false;
+
+    args['toggleOn'] = true;
+    carousel.executeAction(
+        {method: 'toggleAutoplay', args, satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.true;
+  });
+
+  it('toggle autoPlay status using speficied value & autoplay=false', () => {
+    const carousel = new TestCarousel(setElement({
+      delay: 300,
+    }));
+    carousel.buildCallback();
+
+    expect(carousel.shouldAutoplay_).to.be.false;
+
+    const args = {'toggleOn': true};
+    carousel.executeAction(
+        {method: 'toggleAutoplay', args, satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.true;
+
+    args['toggleOn'] = false;
+    carousel.executeAction(
+        {method: 'toggleAutoplay', args, satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.false;
+  });
+
+  it('toggle autoPlay status without speficied value & autoplay=true', () => {
+    const carousel = new TestCarousel(setElement({
+      autoplay: true,
+      delay: 300,
+    }));
+    carousel.buildCallback();
+    carousel.autoplay_();
+
+    expect(carousel.shouldAutoplay_).to.be.true;
+
+    carousel.executeAction(
+        {method: 'toggleAutoplay', satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.false;
+
+    carousel.executeAction(
+        {method: 'toggleAutoplay', satisfiesTrust: () => true});
+    expect(carousel.shouldAutoplay_).to.be.true;
+  });
+
 });

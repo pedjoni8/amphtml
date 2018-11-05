@@ -13,10 +13,10 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {removeElement} from '../../../src/dom';
 import {getData, listen} from './../../../src/event-helper';
-import {isObject, isFiniteNumber} from '../../../src/types';
+import {isFiniteNumber, isObject} from '../../../src/types';
 import {isLayoutSizeDefined} from '../../../src/layout';
+import {removeElement} from '../../../src/dom';
 import {user} from '../../../src/log';
 
 export class AmpRiddleQuiz extends AMP.BaseElement {
@@ -34,13 +34,15 @@ export class AmpRiddleQuiz extends AMP.BaseElement {
     /** @private {?number} */
     this.riddleId_ = null;
 
-    /** @private {!Element} */
-    this.container_ = this.win.document.createElement('div');
-
     /** @private {?Function} */
     this.unlistenMessage_ = null;
   }
 
+  /**
+   * Handles message.
+   *
+   * @param {!Event} event
+   */
   handleMessage_(event) {
     if (!this.iframe_ ||
         event.origin != 'https://www.riddle.com' ||

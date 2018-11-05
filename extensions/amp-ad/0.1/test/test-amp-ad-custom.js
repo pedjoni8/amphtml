@@ -15,20 +15,21 @@
  */
 
 import {AmpAdCustom} from '../amp-ad-custom';
-import {toggleExperiment} from '../../../../src/experiments';
-import {createElementWithAttributes} from '../../../../src/dom';
-import * as sinon from 'sinon';
+import {LayoutPriority} from '../../../../src/layout';
+import {Services} from '../../../../src/services';
+import {
+  createElementWithAttributes,
+  removeChildren,
+} from '../../../../src/dom';
 
 describe('Amp custom ad', () => {
   let sandbox;
 
   beforeEach(() => {
-    toggleExperiment(window, 'ad-type-custom', true);
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
   });
 
   afterEach(() => {
-    toggleExperiment(window, 'ad-type-custom', false);
     sandbox.restore();
   });
 
@@ -36,7 +37,8 @@ describe('Amp custom ad', () => {
    * Get a custom amp-ad element
    * @param {string} url The url of the ad server
    * @param {string} slot The alphanumeric slot Id (optional)
-   * @returns {Element} The completed amp-ad element, which has been added to
+   * @param {HTMLElement} body
+   * @return {Element} The completed amp-ad element, which has been added to
    *    the current document body.
    */
   function getCustomAd(url, slot, body = document.body) {
@@ -98,7 +100,29 @@ describe('Amp custom ad', () => {
     expect(ad4.getFullUrl_()).to.equal(expected34);
   });
 
-  describe('#getPriority', () => {
+  it('should perform multiple requests if no `data-slot`', () => {
+    const stub = sandbox.stub(Services, 'xhrFor').callsFake(() => ({
+      fetchJson: () => Promise.resolve({'foo': 1}),
+    }));
+
+    // Single ad with no slot
+    const url1 = 'example.com/ad';
+    const element1 = getCustomAd(url1);
+    const ad1 = new AmpAdCustom(element1);
+    ad1.buildCallback();
+    ad1.layoutCallback();
+
+    // Single ad with no slot
+    const url2 = 'example.com/ad';
+    const element2 = getCustomAd(url2);
+    const ad2 = new AmpAdCustom(element2);
+    ad2.buildCallback();
+    ad1.layoutCallback();
+
+    assert(stub.calledTwice);
+  });
+
+  describe('#getLayoutPriority', () => {
     const url = '/examples/custom.ad.example.json';
     const slot = 'myslot';
 
@@ -107,10 +131,10 @@ describe('Amp custom ad', () => {
         ampdoc: 'shadow',
       },
     }, env => {
-      it('should return priority of 1', () => {
+      it('should return priority of 0', () => {
         const adElement = getCustomAd(url, slot, /*body*/env.ampdoc.getBody());
         const customAd = new AmpAdCustom(adElement);
-        expect(customAd.getPriority()).to.equal(1);
+        expect(customAd.getLayoutPriority()).to.equal(LayoutPriority.CONTENT);
       });
     });
 
@@ -119,10 +143,92 @@ describe('Amp custom ad', () => {
         ampdoc: 'single',
       },
     }, env => {
-      it('should return priority of 2', () => {
+      it('should return priority of 0', () => {
         const adElement = getCustomAd(url, slot, /*body*/env.ampdoc.getBody());
         const customAd = new AmpAdCustom(adElement);
-        expect(customAd.getPriority()).to.equal(2);
+        expect(customAd.getLayoutPriority()).to.equal(LayoutPriority.CONTENT);
+      });
+    });
+  });
+
+  describe('TemplateData', () => {
+    it('templateData with child template', () => {
+      const elem = getCustomAd('fake.json');
+      const ad = new AmpAdCustom(elem);
+      ad.buildCallback();
+      expect(ad.handleTemplateData_({
+        'a': '1',
+        'b': '2',
+        'data': {
+          'c': '3',
+        },
+        'templateId': '4',
+        'vars': {
+          'd': '5',
+        },
+      })).to.deep.equal({
+        'a': '1',
+        'b': '2',
+        'data': {
+          'c': '3',
+        },
+        'templateId': '4',
+        'vars': {
+          'd': '5',
+        },
+      });
+      expect(elem.getAttribute('template')).to.be.null;
+      expect(elem.getAttribute('data-vars-d')).to.be.null;
+    });
+
+    it('templateData w/o child template', () => {
+      const elem = getCustomAd('fake.json');
+      removeChildren(elem);
+      const ad = new AmpAdCustom(elem);
+      ad.buildCallback();
+      expect(ad.handleTemplateData_({
+        'a': '1',
+        'b': '2',
+        'data': {
+          'c': '3',
+        },
+        'templateId': '4',
+        'vars': {
+          'd': '5',
+        },
+      })).to.deep.equal({
+        'c': '3',
+      });
+      expect(elem.getAttribute('template')).to.equal('4');
+      expect(elem.getAttribute('data-vars-d')).to.equal('5');
+    });
+
+    it('templateData w/o child template or templateId', () => {
+      const elem = getCustomAd('fake.json');
+      removeChildren(elem);
+      const ad = new AmpAdCustom(elem);
+      ad.buildCallback();
+      allowConsoleError(() => {
+        expect(() => {
+          ad.handleTemplateData_({
+            'data': {
+              'a': '1',
+              'b': '2',
+            },
+            'vars': {
+              'abc': '456',
+            },
+          });
+        }).to.throw('TemplateId not specified');
+
+        expect(() => {
+          ad.handleTemplateData_({
+            'templateId': '1',
+            'vars': {
+              'abc': '456',
+            },
+          });
+        }).to.throw('Template data not specified');
       });
     });
   });

@@ -15,7 +15,6 @@
  */
 
 import {Animation} from '../../src/animation';
-import * as sinon from 'sinon';
 
 describe('Animation', () => {
 
@@ -27,7 +26,7 @@ describe('Animation', () => {
   let contextNode;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     clock = sandbox.useFakeTimers();
     vsyncTasks = [];
     vsync = {

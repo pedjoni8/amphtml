@@ -14,6 +14,7 @@
  * limitations under the License.
  */
 
+import {Services} from '../../src/services';
 import {
   activateChunkingForTesting,
   chunkInstanceForTesting,
@@ -22,8 +23,6 @@ import {
   startupChunk,
 } from '../../src/chunk';
 import {installDocService} from '../../src/service/ampdoc-impl';
-import {Services} from '../../src/services';
-import * as sinon from 'sinon';
 
 
 describe('chunk', () => {
@@ -325,7 +324,7 @@ describe('onIdle', () => {
   let clock;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
     clock = sandbox.useFakeTimers();
     calls = [];
     callbackCalled = false;

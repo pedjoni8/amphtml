@@ -14,9 +14,10 @@
  * limitations under the License.
  */
 
+import * as DocumentFetcher from '../../../../src/document-fetcher';
+import * as lolex from 'lolex';
 import {AccessServerAdapter} from '../amp-access-server';
 import {removeFragment} from '../../../../src/url';
-import * as lolex from 'lolex';
 
 
 describes.realWin('AccessServerAdapter', {amp: true}, env => {
@@ -33,7 +34,7 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
     win = env.win;
     document = win.document;
     ampdoc = env.ampdoc;
-    clock = lolex.install();
+    clock = lolex.install({target: win});
 
     validConfig = {
       'authorization': 'https://acme.com/a?rid=READER_ID',
@@ -73,9 +74,9 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
 
     it('should fail if config is invalid', () => {
       delete validConfig['authorization'];
-      expect(() => {
+      allowConsoleError(() => { expect(() => {
         new AccessServerAdapter(ampdoc, validConfig, context);
-      }).to.throw(/"authorization" URL must be specified/);
+      }).to.throw(/"authorization" URL must be specified/); });
     });
 
     it('should tolerate when i-amphtml-access-state is missing', () => {
@@ -91,13 +92,14 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
     let clientAdapter;
     let clientAdapterMock;
     let xhrMock;
+    let docFetcherMock;
     let responseDoc;
     let targetElement1, targetElement2;
 
     beforeEach(() => {
       adapter = new AccessServerAdapter(ampdoc, validConfig, context);
       xhrMock = sandbox.mock(adapter.xhr_);
-
+      docFetcherMock = sandbox.mock(DocumentFetcher);
       clientAdapter = {
         getAuthorizationUrl: () => validConfig['authorization'],
         getAuthorizationTimeout: () => 3000,
@@ -139,7 +141,7 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
         adapter.isProxyOrigin_ = false;
         const p = Promise.resolve();
         clientAdapterMock.expects('authorize').returns(p).once();
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         const result = adapter.authorize();
         expect(result).to.equal(p);
       });
@@ -148,7 +150,7 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
         adapter.serverState_ = null;
         const p = Promise.resolve();
         clientAdapterMock.expects('authorize').returns(p).once();
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         const result = adapter.authorize();
         expect(result).to.equal(p);
       });
@@ -172,8 +174,8 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
             'OTHER': '123',
           },
         };
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: 'request=' + encodeURIComponent(JSON.stringify(request)),
               headers: {
@@ -214,8 +216,8 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
             'OTHER': '123',
           },
         };
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: 'request=' + encodeURIComponent(JSON.stringify(request)),
               headers: {
@@ -232,8 +234,7 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should time out XHR fetch', () => {
+      it('should time out XHR fetch', () => {
         adapter.serviceUrl_ = 'http://localhost:8000/af';
         contextMock.expects('collectUrlVars')
             .withExactArgs(
@@ -252,8 +253,8 @@ describes.realWin('AccessServerAdapter', {amp: true}, env => {
             'OTHER': '123',
           },
         };
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: 'request=' + encodeURIComponent(JSON.stringify(request)),
               headers: {

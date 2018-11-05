@@ -14,21 +14,20 @@
  * limitations under the License.
  */
 
+import {BaseElement} from '../../src/base-element';
+import {
+  CustomEventReporterBuilder,
+  insertAnalyticsElement,
+  useAnalyticsInSandbox,
+} from '../../src/extension-analytics';
+import {Services} from '../../src/services';
 import {
   getServiceForDoc,
   registerServiceBuilderForDoc,
   resetServiceForTesting,
 } from '../../src/service';
-import {
-  insertAnalyticsElement,
-  useAnalyticsInSandbox,
-  CustomEventReporterBuilder,
-} from '../../src/extension-analytics';
-import {registerElement} from '../../src/service/custom-element-registry';
-import {Services} from '../../src/services';
-import {BaseElement} from '../../src/base-element';
 import {macroTask} from '../../testing/yield';
-import * as sinon from 'sinon';
+import {registerElement} from '../../src/service/custom-element-registry';
 
 
 describes.realWin('extension-analytics', {
@@ -41,10 +40,10 @@ describes.realWin('extension-analytics', {
   describe('insertAnalyticsElement', () => {
     let sandbox;
     class MockInstrumentation {
-    };
+    }
 
     beforeEach(() => {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.sandbox;
       timer = Services.timerFor(env.win);
       ampdoc = env.ampdoc;
       win = env.win;
@@ -54,36 +53,41 @@ describes.realWin('extension-analytics', {
       sandbox.restore();
     });
 
-    it('should create analytics element if analytics is installed', () => {
-      const ele = win.document.createElement('div');
-      win.document.body.appendChild(ele);
-      const baseEle = new BaseElement(ele);
-      registerServiceBuilderForDoc(
-          ampdoc, 'amp-analytics-instrumentation', MockInstrumentation);
-      // Force instantiation
-      getServiceForDoc(ampdoc, 'amp-analytics-instrumentation');
-      const config = {
-        'requests': {
-          'pageview': 'https://example.com/analytics',
-        },
-        'triggers': {
-          'trackPageview': {
-            'on': 'visible',
-            'request': 'pageview',
+    [true, false].forEach(disableImmediate => {
+      it('should create analytics element if analytics is installed, ' +
+          `disableImmediate ${disableImmediate}`, () => {
+        const config = {
+          'requests': {
+            'pageview': 'https://example.com/analytics',
           },
-        },
-      };
-      expect(baseEle.element.querySelector('amp-analytics')).to.be.null;
-      expect(insertAnalyticsElement(baseEle.element, config, true)).to.be.ok;
-      return timer.promise(50).then(() => {
-        const analyticsEle = baseEle.element.querySelector('amp-analytics');
-        expect(analyticsEle).to.not.be.null;
-        expect(analyticsEle.getAttribute('sandbox')).to.equal('true');
-        expect(analyticsEle.getAttribute('trigger')).to.equal('immediate');
-        const script = (analyticsEle).querySelector('script');
-        expect(script.textContent).to.jsonEqual(JSON.stringify(config));
-        expect(analyticsEle.CONFIG).to.jsonEqual(config);
-        expect(analyticsEle.getAttribute('sandbox')).to.equal('true');
+          'triggers': {
+            'trackPageview': {
+              'on': 'visible',
+              'request': 'pageview',
+            },
+          },
+        };
+        const ele = win.document.createElement('div');
+        win.document.body.appendChild(ele);
+        const baseEle = new BaseElement(ele);
+        registerServiceBuilderForDoc(
+            ampdoc, 'amp-analytics-instrumentation', MockInstrumentation);
+        // Force instantiation
+        getServiceForDoc(ampdoc, 'amp-analytics-instrumentation');
+        expect(baseEle.element.querySelector('amp-analytics')).to.be.null;
+        expect(insertAnalyticsElement(
+            baseEle.element, config, true, disableImmediate)).to.be.ok;
+        return timer.promise(50).then(() => {
+          const analyticsEle = baseEle.element.querySelector('amp-analytics');
+          expect(analyticsEle).to.not.be.null;
+          expect(analyticsEle.getAttribute('sandbox')).to.equal('true');
+          expect(analyticsEle.getAttribute('trigger')).to.equal(
+              disableImmediate ? '' : 'immediate');
+          const script = (analyticsEle).querySelector('script');
+          expect(script.textContent).to.jsonEqual(JSON.stringify(config));
+          expect(analyticsEle.CONFIG).to.jsonEqual(config);
+          expect(analyticsEle.getAttribute('sandbox')).to.equal('true');
+        });
       });
     });
   });
@@ -94,7 +98,7 @@ describes.realWin('extension-analytics', {
     let sandbox;
 
     beforeEach(() => {
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.sandbox;
       parent = document.createElement('div');
       builder = new CustomEventReporterBuilder(parent);
     });
@@ -160,7 +164,7 @@ describes.realWin('extension-analytics', {
       } catch (e) {
         expect(e.message).to.equal(
             'customEventReporterBuilder should not track same eventType twice');
-      };
+      }
     });
 
     it('should return a customEventReporter instance', () => {
@@ -170,6 +174,27 @@ describes.realWin('extension-analytics', {
       };};
       const reporter = builder.track('test', 'fake.com').build();
       expect(reporter.trigger).to.exist;
+    });
+
+    it('Should allow to specify transport config', () => {
+      parent.getResourceId = () => { return 1; };
+      parent.signals = () => {
+        return {
+          whenSignal: () => { return Promise.resolve(); },
+        };
+      };
+      builder.setTransportConfig({
+        'beacon': true,
+        'image': true,
+        'xhrpost': false,
+      });
+
+      const reporter = builder.build();
+      expect(reporter.config_.transport).to.jsonEqual({
+        'beacon': true,
+        'image': true,
+        'xhrpost': false,
+      });
     });
   });
 
@@ -189,7 +214,7 @@ describes.realWin('extension-analytics', {
 
     beforeEach(() => {
       ampdoc = env.ampdoc;
-      sandbox = sinon.sandbox.create();
+      sandbox = sinon.sandbox;
       triggerEventSpy = sandbox.spy();
       resetServiceForTesting(env.win, 'amp-analytics-instrumentation');
       registerServiceBuilderForDoc(
@@ -465,5 +490,3 @@ describes.realWin('extension-analytics', {
     });
   });
 });
-
-

@@ -19,7 +19,7 @@ import {rrulestr} from '../../../third_party/rrule/rrule';
 
 
 /** @enum {string} */
-export const DateType = {
+const DateType = {
   INVALID: 'invalid',
   RRULE: 'rrule',
   DATE: 'date',
@@ -33,8 +33,10 @@ export class DatesList {
    * @param {!Array<string>} dates
    */
   constructor(dates) {
+
     /** @private @const */
-    this.ReactDates_ = requireExternal('react-dates');
+    this.ReactDates_ = /** @type {!JsonObject} */ (
+      requireExternal('react-dates'));
 
     /** @private @const */
     this.moment_ = requireExternal('moment');
@@ -57,30 +59,31 @@ export class DatesList {
    * @return {boolean}
    */
   contains(date) {
-    return this.matchesDate_(date) || this.matchesRrule_(date);
+    const m = this.moment_(date);
+    return this.matchesDate_(m) || this.matchesRrule_(m);
   }
 
   /**
    * Determines if any internal moment object matches the given date.
-   * @param {!moment|string} date
+   * @param {!moment} date
    * @return {boolean}
    * @private
    */
   matchesDate_(date) {
-    return this.dates_.some(d => this.ReactDates_.isSameDay(d, date));
+    return this.dates_.some(d => this.ReactDates_['isSameDay'](d, date));
   }
 
   /**
    * Determines if any internal RRULE object matches the given date.
-   * @param {!moment|string} date
+   * @param {!moment} date
    * @return {boolean}
    * @private
    */
   matchesRrule_(date) {
+    const nextDate = date.clone().startOf('day').add(1, 'day').toDate();
     return this.rrulestrs_.some(rrule => {
-      const nextDate = date.clone().startOf('day').add(1, 'day').toDate();
       const rruleDay = this.moment_(rrule.before(nextDate));
-      return this.ReactDates_.isSameDay(rruleDay, date);
+      return this.ReactDates_['isSameDay'](rruleDay, date);
     });
   }
 
@@ -107,7 +110,7 @@ export class DatesList {
 /**
  * Tries to parse a string into an RRULE object.
  * @param {string} str A string which represents a repeating date RRULE spec.
- * @return {?Object}
+ * @return {?JsonObject}
  */
 function tryParseRrulestr(str) {
   try {

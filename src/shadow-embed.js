@@ -16,22 +16,22 @@
 
 import {Services} from './services';
 import {ShadowCSS} from '../third_party/webcomponentsjs/ShadowCSS';
-import {dev} from './log';
 import {
+  ShadowDomVersion,
+  getShadowDomSupportedVersion,
+  isShadowCssSupported,
+  isShadowDomSupported,
+} from './web-components';
+import {
+  childElementsByTag,
   closestNode,
   escapeCssSelectorIdent,
   iterateCursor,
   removeElement,
-  childElementsByTag,
 } from './dom';
+import {dev} from './log';
 import {installCssTransformer} from './style-installer';
-import {
-  isShadowCssSupported,
-  isShadowDomSupported,
-  getShadowDomSupportedVersion,
-  ShadowDomVersion,
-} from './web-components';
-import {setStyle} from './style';
+import {setInitialDisplay, setStyle} from './style';
 import {toArray, toWin} from './types';
 
 /**
@@ -112,7 +112,6 @@ export function createShadowRoot(hostElement) {
  */
 function createShadowRootPolyfill(hostElement) {
   const doc = hostElement.ownerDocument;
-  const win = toWin(doc.defaultView);
 
   // Host CSS polyfill.
   hostElement.classList.add('i-amphtml-shadow-host-polyfill');
@@ -128,7 +127,12 @@ function createShadowRootPolyfill(hostElement) {
     // TODO(@dvoytenko) Consider to switch to a type union instead.
     /** @type {?}  */ (doc.createElement('i-amphtml-shadow-root')));
   hostElement.appendChild(shadowRoot);
-  hostElement.shadowRoot = hostElement.__AMP_SHADOW_ROOT = shadowRoot;
+  hostElement.__AMP_SHADOW_ROOT = shadowRoot;
+  Object.defineProperty(hostElement, 'shadowRoot', {
+    enumerable: true,
+    configurable: true,
+    value: shadowRoot,
+  });
 
   // API: https://www.w3.org/TR/shadow-dom/#the-shadowroot-interface
 
@@ -136,7 +140,7 @@ function createShadowRootPolyfill(hostElement) {
 
   // `getElementById` is resolved via `querySelector('#id')`.
   shadowRoot.getElementById = function(id) {
-    const escapedId = escapeCssSelectorIdent(win, id);
+    const escapedId = escapeCssSelectorIdent(id);
     return /** @type {HTMLElement|null} */ (
       shadowRoot./*OK*/querySelector(`#${escapedId}`));
   };
@@ -203,7 +207,7 @@ export function importShadowBody(shadowRoot, body, deep) {
     resultBody = dev().assertElement(doc.importNode(body, deep));
   } else {
     resultBody = doc.createElement('amp-body');
-    setStyle(resultBody, 'display', 'block');
+    setInitialDisplay(resultBody, 'block');
     for (let i = 0; i < body.attributes.length; i++) {
       resultBody.setAttribute(
           body.attributes[0].name, body.attributes[0].value);
@@ -271,7 +275,7 @@ export function scopeShadowCss(shadowRoot, css) {
   // Patch selectors.
   // Invoke `ShadowCSS.scopeRules` via `call` because the way it uses `this`
   // internally conflicts with Closure compiler's advanced optimizations.
-  const scopeRules = ShadowCSS.scopeRules;
+  const {scopeRules} = ShadowCSS;
   return scopeRules.call(ShadowCSS, rules, `.${id}`, transformRootSelectors);
 }
 
@@ -553,7 +557,7 @@ export class ShadowDomWriterStreamer {
 
     // Merge body children.
     if (this.targetBody_) {
-      const inputBody = dev().assert(this.parser_.body);
+      const inputBody = /** @type !Element */(dev().assert(this.parser_.body));
       const targetBody = dev().assert(this.targetBody_);
       let transferCount = 0;
       removeNoScriptElements(inputBody);
@@ -697,15 +701,16 @@ export class ShadowDomWriterBulk {
   }
 }
 
-/*
+/**
  * Remove any noscript elements.
- * @param {!Element} parent
  *
- * According to the spec (https://w3c.github.io/DOM-Parsing/#the-domparser-interface),
- * with `DOMParser().parseFromString`, contents of `noscript` get parsed as markup,
- * so we need to remove them manually.
- * Why? ¯\_(ツ)_/¯
- * `createHTMLDocument()` seems to behave the same way.
+ * According to the spec
+ * (https://w3c.github.io/DOM-Parsing/#the-domparser-interface), with
+ * `DOMParser().parseFromString`, contents of `noscript` get parsed as markup,
+ * so we need to remove them manually. Why? ¯\_(ツ)_/¯ `createHTMLDocument()`
+ * seems to behave the same way.
+ *
+ * @param {!Element} parent
  */
 function removeNoScriptElements(parent) {
   const noscriptElements = childElementsByTag(parent, 'noscript');

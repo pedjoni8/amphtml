@@ -14,17 +14,17 @@
  * limitations under the License.
  */
 
+import * as lolex from 'lolex';
 import {
   PositionObserver,
 } from '../../src/service/position-observer/position-observer-impl';
 import {
   PositionObserverFidelity,
 } from '../../src/service/position-observer/position-observer-worker';
-import {layoutRectLtwh} from '../../src/layout-rect';
 import {Services} from '../../src/services';
-import {setStyles} from '../../src/style';
+import {layoutRectLtwh} from '../../src/layout-rect';
 import {macroTask} from '../../testing/yield';
-import * as lolex from 'lolex';
+import {setStyles} from '../../src/style';
 
 describes.realWin('PositionObserver', {amp: 1}, env => {
   let win;
@@ -40,7 +40,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
     let elem1;
     let clock;
     beforeEach(() => {
-      clock = lolex.install();
+      clock = lolex.install({target: ampdoc.win});
       posOb = new PositionObserver(ampdoc);
       sandbox.stub(posOb.vsync_, 'measure').callsFake(callback => {
         win.setTimeout(callback, 1);
@@ -88,8 +88,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
       });
     });
 
-    // TODO(zhouyx, #12486): Make this test work with lolex v2.
-    describe.skip('update position info at correct time', () => {
+    describe('update position info at correct time', () => {
       let top;
       beforeEach(() => {
         top = 0;
@@ -103,12 +102,12 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
         clock.tick(2);
         yield macroTask();
         expect(spy).to.be.calledOnce;
-        spy.reset();
+        spy.resetHistory();
         top++;
         win.dispatchEvent(new Event('scroll'));
         yield macroTask();
         expect(spy).to.be.calledOnce;
-        spy.reset();
+        spy.resetHistory();
         top++;
         clock.tick(1);
         yield macroTask();
@@ -116,7 +115,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
         // stop fire scroll update after 500ms timeout
         // Make the number larger to avoid window scroll event
         clock.tick(5001);
-        spy.reset();
+        spy.resetHistory();
         top++;
         clock.tick(1);
         yield macroTask();
@@ -134,8 +133,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
       });
     });
 
-    // TODO(zhouyx, #12486): Make this test work with lolex v2.
-    describe.skip('should provide correct position data', () => {
+    describe('should provide correct position data', () => {
       let top;
       beforeEach(() => {
         top = 0;
@@ -156,7 +154,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
           relativePos: 'inside',
           viewportRect: layoutRectLtwh(0, 0, sizes.width, sizes.height),
         });
-        spy.reset();
+        spy.resetHistory();
         top = -5;
         posOb.updateAllEntries();
         yield macroTask();
@@ -165,7 +163,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
           relativePos: 'top',
           viewportRect: layoutRectLtwh(0, 0, sizes.width, sizes.height),
         });
-        spy.reset();
+        spy.resetHistory();
         top = sizes.height - 5;
         posOb.updateAllEntries();
         yield macroTask();
@@ -189,7 +187,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
         const spy = sandbox.spy();
         posOb.observe(elem, PositionObserverFidelity.HIGH, spy);
         yield macroTask();
-        spy.reset();
+        spy.resetHistory();
         top = -11;
         posOb.updateAllEntries();
         yield macroTask();
@@ -198,7 +196,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
           relativePos: 'top',
           viewportRect: layoutRectLtwh(0, 0, sizes.width, sizes.height),
         });
-        spy.reset();
+        spy.resetHistory();
         elem.style.top = sizes.height + 1;
         posOb.updateAllEntries();
         yield macroTask();
@@ -211,7 +209,7 @@ describes.realWin('PositionObserver', {amp: 1}, env => {
           relativePos: 'inside',
           viewportRect: layoutRectLtwh(0, 0, sizes.width, sizes.height),
         });
-        spy.reset();
+        spy.resetHistory();
         top = sizes.height + 5;
         posOb.updateAllEntries();
         yield macroTask();

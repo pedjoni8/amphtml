@@ -14,12 +14,12 @@
  * limitations under the License.
  */
 
+import * as DocumentFetcher from '../../../../src/document-fetcher';
+import * as lolex from 'lolex';
 import {AccessServerJwtAdapter} from '../amp-access-server-jwt';
 import {getMode} from '../../../../src/mode';
-import {removeFragment, serializeQueryString} from '../../../../src/url';
 import {isUserErrorMessage} from '../../../../src/log';
-import * as lolex from 'lolex';
-import * as sinon from 'sinon';
+import {removeFragment, serializeQueryString} from '../../../../src/url';
 
 
 describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
@@ -34,7 +34,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
   beforeEach(() => {
     win = env.win;
     ampdoc = env.ampdoc;
-    clock = lolex.install();
+    clock = lolex.install({target: win});
 
     validConfig = {
       'authorization': 'https://acme.com/a?rid=READER_ID',
@@ -78,23 +78,23 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
 
     it('should fail if config is invalid: authorization', () => {
       delete validConfig['authorization'];
-      expect(() => {
+      allowConsoleError(() => { expect(() => {
         new AccessServerJwtAdapter(ampdoc, validConfig, context);
-      }).to.throw(/"authorization" URL must be specified/);
+      }).to.throw(/"authorization" URL must be specified/); });
     });
 
     it('should fail if config is invalid: publicKeyUrl', () => {
       delete validConfig['publicKeyUrl'];
-      expect(() => {
+      allowConsoleError(() => { expect(() => {
         new AccessServerJwtAdapter(ampdoc, validConfig, context);
-      }).to.throw(/"publicKey" or "publicKeyUrl" must be specified/);
+      }).to.throw(/"publicKey" or "publicKeyUrl" must be specified/); });
     });
 
     it('should fail if config is invalid: http publicKeyUrl', () => {
       validConfig['publicKeyUrl'] = 'http://acme.com/pk';
-      expect(() => {
+      allowConsoleError(() => { expect(() => {
         new AccessServerJwtAdapter(ampdoc, validConfig, context);
-      }).to.throw(/https/);
+      }).to.throw(/https/); });
     });
 
     it('should support either publicKey or publicKeyUrl', () => {
@@ -118,6 +118,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
     let clientAdapter;
     let clientAdapterMock;
     let xhrMock;
+    let docFetcherMock;
     let jwtMock;
     let responseDoc;
     let targetElement1, targetElement2;
@@ -126,6 +127,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
       adapter = new AccessServerJwtAdapter(ampdoc, validConfig, context);
       xhrMock = sandbox.mock(adapter.xhr_);
       jwtMock = sandbox.mock(adapter.jwtHelper_);
+      docFetcherMock = sandbox.mock(DocumentFetcher);
 
       clientAdapter = {
         getAuthorizationUrl: () => validConfig['authorization'],
@@ -169,7 +171,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         const p = Promise.resolve();
         const stub = sandbox.stub(adapter, 'authorizeOnClient_').callsFake(
             () => p);
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         const result = adapter.authorize();
         expect(result).to.equal(p);
         expect(stub).to.be.calledOnce;
@@ -180,7 +182,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         const p = Promise.resolve();
         const stub = sandbox.stub(adapter, 'authorizeOnClient_').callsFake(
             () => p);
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         const result = adapter.authorize();
         expect(result).to.equal(p);
         expect(stub).to.be.calledOnce;
@@ -190,7 +192,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         const p = Promise.resolve();
         const stub = sandbox.stub(adapter, 'authorizeOnServer_').callsFake(
             () => p);
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         const result = adapter.authorize();
         expect(result).to.equal(p);
         expect(stub).to.be.calledOnce;
@@ -201,7 +203,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         const jwt = {'amp_authdata': authdata};
         sandbox.stub(adapter, 'fetchJwt_').callsFake(
             () => Promise.resolve({jwt}));
-        xhrMock.expects('fetchDocument').never();
+        docFetcherMock.expects('fetchDocument').never();
         return adapter.authorizeOnClient_().then(result => {
           expect(result).to.equal(authdata);
         });
@@ -219,8 +221,8 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
           'state': 'STATE1',
           'jwt': encoded,
         });
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: request,
               headers: {
@@ -253,8 +255,8 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
           'state': 'STATE1',
           'jwt': encoded,
         });
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: request,
               headers: {
@@ -277,8 +279,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should fail when authorize-and-fill times out', () => {
+      it('should fail when authorize-and-fill times out', () => {
         adapter.serviceUrl_ = 'http://localhost:8000/af';
         const authdata = {};
         const jwt = {'amp_authdata': authdata};
@@ -290,8 +291,8 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
           'state': 'STATE1',
           'jwt': encoded,
         });
-        xhrMock.expects('fetchDocument')
-            .withExactArgs('http://localhost:8000/af', {
+        docFetcherMock.expects('fetchDocument')
+            .withExactArgs(sinon.match.any, 'http://localhost:8000/af', {
               method: 'POST',
               body: request,
               headers: {
@@ -408,8 +409,7 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should fail when JWT fetch times out', () => {
+      it('should fail when JWT fetch times out', () => {
         contextMock.expects('buildUrl')
             .withExactArgs(
                 'https://acme.com/a?rid=READER_ID',
@@ -591,23 +591,23 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
 
       it('should fail w/o exp', () => {
         delete jwt['exp'];
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw(/"exp" field must be specified/);
+        }).to.throw(/"exp" field must be specified/); });
       });
 
       it('should fail w/invalid exp', () => {
         jwt['exp'] = 'invalid';
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw();
+        }).to.throw(); });
       });
 
       it('should fail when expired', () => {
         jwt['exp'] = Math.floor((Date.now() - 10000) / 1000);
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw(/token has expired/);
+        }).to.throw(/token has expired/); });
       });
 
       it('should succeed with array aud', () => {
@@ -623,23 +623,23 @@ describes.realWin('AccessServerJwtAdapter', {amp: true}, env => {
 
       it('should fail w/o aud', () => {
         delete jwt['aud'];
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw(/"aud" field must be specified/);
+        }).to.throw(/"aud" field must be specified/); });
       });
 
       it('should fail w/non-AMP aud', () => {
         jwt['aud'] = 'other.org';
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw(/"aud" must be "ampproject.org"/);
+        }).to.throw(/"aud" must be "ampproject.org"/); });
       });
 
       it('should fail w/non-AMP aud array', () => {
         jwt['aud'] = ['another.org', 'other.org'];
-        expect(() => {
+        allowConsoleError(() => { expect(() => {
           adapter.validateJwt_(jwt);
-        }).to.throw(/"aud" must be "ampproject.org"/);
+        }).to.throw(/"aud" must be "ampproject.org"/); });
       });
     });
 

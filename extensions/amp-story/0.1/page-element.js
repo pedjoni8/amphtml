@@ -13,8 +13,8 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-import {scopedQuerySelector, scopedQuerySelectorAll} from '../../../src/dom';
 import {dev} from '../../../src/log';
+import {scopedQuerySelectorAll} from '../../../src/dom';
 
 /**
  * A map of elements to delay showing the page.  The key is a DOM query to find
@@ -208,7 +208,14 @@ export class PageElement {
   }
 }
 
+/**
+ * Media element.
+ */
 class MediaElement extends PageElement {
+  /**
+   * @param {!Element} element The element on the page.
+   * @param {!./amp-story-page.AmpStoryPage} page The page that the element is on.
+   */
   constructor(element, page) {
     super(element, page);
 
@@ -227,7 +234,7 @@ class MediaElement extends PageElement {
     if (this.element instanceof HTMLMediaElement) {
       this.mediaElement_ = this.element;
     } else if (!this.mediaElement_) {
-      const el = scopedQuerySelector(this.element, 'audio, video');
+      const el = this.element.querySelector('audio, video');
       if (el instanceof HTMLMediaElement) {
         this.mediaElement_ = /** @type {!HTMLMediaElement} */ (el);
       }
@@ -317,7 +324,14 @@ class MediaElement extends PageElement {
   }
 }
 
+/**
+ * Image element.
+ */
 class ImageElement extends PageElement {
+  /**
+   * @param {!Element} element The element on the page.
+   * @param {!./amp-story-page.AmpStoryPage} page The page that the element is on.
+   */
   constructor(element, page) {
     super(element, page);
 
@@ -335,7 +349,7 @@ class ImageElement extends PageElement {
     if (this.element instanceof HTMLImageElement) {
       this.imageElement_ = this.element;
     } else if (!this.imageElement_) {
-      const el = scopedQuerySelector(this.element, 'img');
+      const el = this.element.querySelector('img');
       if (el instanceof HTMLImageElement) {
         this.imageElement_ = /** @type {!HTMLImageElement} */ (el);
       }
@@ -363,6 +377,9 @@ class ImageElement extends PageElement {
   }
 }
 
+/**
+ * Video interface.
+ */
 class VideoInterfaceElement extends PageElement {
   /** @private */
   isLaidOut_() {

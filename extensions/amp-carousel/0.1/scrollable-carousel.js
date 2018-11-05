@@ -14,13 +14,14 @@
  * limitations under the License.
  */
 
+import {ActionTrust} from '../../../src/action-constants';
 import {Animation} from '../../../src/animation';
 import {BaseCarousel} from './base-carousel';
 import {Layout} from '../../../src/layout';
 import {Services} from '../../../src/services';
-import {numeric} from '../../../src/transition';
 import {dev} from '../../../src/log';
 import {isExperimentOn} from '../../../src/experiments';
+import {numeric} from '../../../src/transition';
 
 /** @const {string} */
 const TAG = 'amp-scrollable-carousel';
@@ -79,6 +80,14 @@ export class AmpScrollableCarousel extends BaseCarousel {
     this.container_.addEventListener(
         'scroll', this.scrollHandler_.bind(this));
 
+    this.registerAction('goToSlide', invocation => {
+      const {args} = invocation;
+      if (args) {
+        const index = parseInt(args['index'], 10);
+        this.goToSlide_(index);
+      }
+    }, ActionTrust.LOW);
+
     if (this.useLayers_) {
       this.declareLayer(this.container_);
     }
@@ -127,6 +136,55 @@ export class AmpScrollableCarousel extends BaseCarousel {
   }
 
   /**
+   * Scrolls to the slide at the given slide index.
+   * @param {number} index
+   * @private
+   */
+  goToSlide_(index) {
+    const noOfSlides = this.cells_.length;
+
+    if (!isFinite(index) || index < 0 || index >= noOfSlides) {
+      this.user().error(TAG, 'Invalid [slide] value: %s', index);
+      return Promise.resolve();
+    }
+
+    const oldPos = this.pos_;
+    let newPos = oldPos;
+
+    const measureNewPosition = () => {
+      newPos = this.getPosForSlideIndex_(index);
+    };
+
+    const mutateNewPosition = () => {
+      if (newPos == oldPos) {
+        return;
+      }
+      /** @const {!TransitionDef<number>} */
+      const interpolate = numeric(oldPos, newPos);
+      const duration = 200;
+      const curve = 'ease-in-out';
+      Animation.animate(this.element, pos => {
+        this.container_./*OK*/scrollLeft = interpolate(pos);
+      }, duration, curve).thenAlways(() => {
+        this.commitSwitch_(newPos);
+      });
+    };
+
+    this.measureMutateElement(measureNewPosition, mutateNewPosition);
+  }
+
+  /**
+   * Calculates the target scroll position for the given slide index.
+   * @param {number} index
+   */
+  getPosForSlideIndex_(index) {
+    const containerWidth = this.element./*OK*/offsetWidth;
+    const targetPosition = this.cells_[index]./*OK*/offsetLeft;
+    const targetWidth = this.cells_[index]./*OK*/offsetWidth;
+    return targetPosition - (containerWidth - targetWidth) / 2;
+  }
+
+  /**
    * Handles scroll on the carousel container.
    * @private
    */
@@ -140,7 +198,7 @@ export class AmpScrollableCarousel extends BaseCarousel {
   }
 
   /**
-   * @param {!number} startingScrollLeft
+   * @param {number} startingScrollLeft
    * @private
    */
   waitForScroll_(startingScrollLeft) {

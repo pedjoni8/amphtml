@@ -14,8 +14,9 @@
  * limitations under the License.
  */
 
-import {getCurve} from './curve';
 import * as st from './style';
+import {assertNotDisplay, setStyle} from './style';
+import {getCurve} from './curve';
 
 
 
@@ -88,7 +89,7 @@ export function withCurve(transition, curve) {
 export function setStyles(element, styles) {
   return (time, complete) => {
     for (const k in styles) {
-      st.setStyle(element, k, styles[k](time, complete));
+      setStyle(element, assertNotDisplay(k), styles[k](time, complete));
     }
   };
 }

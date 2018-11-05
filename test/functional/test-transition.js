@@ -15,14 +15,13 @@
  */
 
 import * as tr from '../../src/transition';
-import * as sinon from 'sinon';
 
 describe('Transition', () => {
 
   let sandbox;
 
   beforeEach(() => {
-    sandbox = sinon.sandbox.create();
+    sandbox = sinon.sandbox;
   });
 
   afterEach(() => {

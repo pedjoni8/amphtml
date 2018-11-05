@@ -14,11 +14,10 @@
  * limitations under the License.
  */
 
+import * as lolex from 'lolex';
 import {Services} from '../../src/services';
 import {getMode} from '../../src/mode';
 import {installPerformanceService} from '../../src/service/performance-impl';
-import * as lolex from 'lolex';
-import * as sinon from 'sinon';
 
 
 describes.realWin('performance', {amp: true}, env => {
@@ -32,7 +31,8 @@ describes.realWin('performance', {amp: true}, env => {
     win = env.win;
     sandbox = env.sandbox;
     ampdoc = env.ampdoc;
-    clock = lolex.install({toFake: ['Date', 'setTimeout', 'clearTimeout']});
+    clock = lolex.install({
+      target: win, toFake: ['Date', 'setTimeout', 'clearTimeout']});
     installPerformanceService(env.win);
     perf = Services.performanceFor(env.win);
   });
@@ -105,8 +105,7 @@ describes.realWin('performance', {amp: true}, env => {
       expect(perf.events_.length).to.equal(50);
     });
 
-    // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-    it.skip('should add default optional relative start time on the ' +
+    it('should add default optional relative start time on the ' +
        'queued tick event', () => {
       clock.tick(150);
       perf.tick('start0');
@@ -117,14 +116,13 @@ describes.realWin('performance', {amp: true}, env => {
       });
     });
 
-    // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-    it.skip('should drop events in the head of the queue', () => {
+    it('should drop events in the head of the queue', () => {
       const tickTime = 100;
       clock.tick(tickTime);
 
       expect(perf.events_.length).to.equal(0);
 
-      for (let i = 0; i < 50 ; i++) {
+      for (let i = 0; i < 50; i++) {
         perf.tick(`start${i}`);
       }
 
@@ -197,8 +195,7 @@ describes.realWin('performance', {amp: true}, env => {
 
     describe('channel established', () => {
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should flush events when channel is ready', () => {
+      it('should flush events when channel is ready', () => {
         sandbox.stub(viewer, 'getParam').withArgs('csi').returns(null);
         sandbox.stub(viewer, 'whenMessagingReady')
             .returns(Promise.resolve());
@@ -297,8 +294,7 @@ describes.realWin('performance', {amp: true}, env => {
         expect(tickDeltaStub.firstCall.args[1]).to.equal(0);
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should calculate after visible', () => {
+      it('should calculate after visible', () => {
         perf.coreServicesAvailable();
         firstVisibleTime = 5;
 
@@ -309,8 +305,7 @@ describes.realWin('performance', {amp: true}, env => {
         expect(tickDeltaStub.firstCall.args[1]).to.equal(5);
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should be zero after visible but for earlier event', () => {
+      it('should be zero after visible but for earlier event', () => {
         perf.coreServicesAvailable();
         firstVisibleTime = 5;
 
@@ -374,8 +369,7 @@ describes.realWin('performance', {amp: true}, env => {
             .returns(Promise.resolve());
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should forward all queued tick events', () => {
+      it('should forward all queued tick events', () => {
         perf.tick('start0');
         clock.tick(1);
         perf.tick('start1');
@@ -412,8 +406,7 @@ describes.realWin('performance', {amp: true}, env => {
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should forward tick events', () => {
+      it('should forward tick events', () => {
         return perf.coreServicesAvailable().then(() => {
           clock.tick(100);
           perf.tick('start0');
@@ -538,8 +531,7 @@ describes.realWin('performance', {amp: true}, env => {
         return perf.coreServicesAvailable();
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should call prerenderComplete on viewer', () => {
+      it('should call prerenderComplete on viewer', () => {
         clock.tick(100);
         whenFirstVisibleResolve();
         sandbox.stub(viewer, 'getParam').withArgs('csi').returns('1');
@@ -551,14 +543,13 @@ describes.realWin('performance', {amp: true}, env => {
             expect(viewerSendMessageStub.withArgs(
                 'prerenderComplete').firstCall.args[1].value).to.equal(400);
 
-            expect(getPerformanceMarks()).to.deep.equal(
+            expect(getPerformanceMarks()).to.have.members(
                 ['ol', 'ofv', 'pc']);
           });
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should call prerenderComplete on viewer even if csi is ' +
+      it('should call prerenderComplete on viewer even if csi is ' +
         'off', () => {
         clock.tick(100);
         whenFirstVisibleResolve();
@@ -573,8 +564,7 @@ describes.realWin('performance', {amp: true}, env => {
         });
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should tick `pc` with delta=400 when user request document ' +
+      it('should tick `pc` with delta=400 when user request document ' +
          'to be visible before before first viewport completion', () => {
         clock.tick(100);
         whenFirstVisibleResolve();
@@ -620,8 +610,7 @@ describes.realWin('performance', {amp: true}, env => {
         perf.coreServicesAvailable();
       });
 
-      // TODO(dvoytenko, #12486): Make this test work with lolex v2.
-      it.skip('should call prerenderComplete on viewer', () => {
+      it('should call prerenderComplete on viewer', () => {
         sandbox.stub(viewer, 'getParam').withArgs('csi').returns('1');
         sandbox.stub(viewer, 'isEmbedded').returns(true);
         clock.tick(300);
